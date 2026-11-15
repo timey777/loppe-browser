@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────
+# android — Android 工程（平台相关的东西全在 loppe-cli 里，这份文件只描述「是什么」）
+#
+# 构建：loppe-cli build . Debug|Release  →  build/Debug|Release/LoppeBrowser.apk
+#   loppe-cli 自己找工具链（<loppe 安装目录>/toolchain 或 LOPPE_TOOLCHAIN）、
+#   sysroot、aapt2/d8/apksigner、android.jar、JDK，跑完
+#   clang 交叉编译 → aapt2 → javac → d8 → zipalign → apksigner。
+#
+# 要改的只有下面这些「工程自身」的东西；API 级别与签名就地改。
+# ─────────────────────────────────────────────────────────────────
+
+minimum_required 0.1
+
+project android
+platform = android
+
+# 引擎包：只写包目录名，平台段/目标段由构建器补（这里 → loppe-android-v…/arm64-v8a）
+pkg = loppe-desktop-v1.0.0-preview.2
+
+# 浏览器内核是 ../kernel 的静态库：源码与 QuickJS 在那边列一次，这里只链接
+addsub "../kernel"
+
+exe LoppeBrowserAndroid {
+    # 目标名要在解决方案树里唯一（桌面壳已经叫 LoppeBrowser），产物名用 output 对齐
+    output     = LoppeBrowser
+    # 包名（Java 包目录 = 它把点号换成斜杠；JNI 符号也由它推）
+    package    = com.example.android
+    manifest   = app/src/main/AndroidManifest.xml
+    assets     = app/src/main/assets
+    # 最低支持的 Android 版本（minSdk）；target_sdk 决定用哪个 platforms/android-XX/android.jar
+    min_api    = 21
+    target_sdk = 33
+
+    # Java 源（自动发现：app/src/main/java 下新增 .java 不用改本文件）
+    java       = [ ${cur_dir}/app/src/main/java/**.java ]
+    # native 源（自动发现 .c/.cpp；新增源文件、新建子目录都不用改本文件）
+    sources    = [ ${cur_dir}/app/src/main/cpp/**.c,
+                   ${cur_dir}/app/src/main/cpp/**.cpp ]
+    # 内核头 / QuickJS 头 / 引擎头由 browser_kernel 的公共 include 带过来
+    include    = [ app/src/main/cpp ]
+    # 引擎：预编译静态库包，随工程走（工程里不出现引擎源码）
+    # 布局同 IDE 新建的工程：解决方案根 thirdparty/loppe-<平台>-v<引擎版本>/<目标>
+    link       = [ browser_kernel,
+                   ${pkg}/lib/arm64-v8a/libloppe.a,
+                   ${pkg}/lib/arm64-v8a/libfreetype.a ]
+    define     = [ LOPPE_PLATFORM_ANDROID, LOPPE_ENABLE_RENDERING, LOPPE_STATIC ]
+
+    # 工程树里显示、但不参与编译的文件
+    view       = [ app/src/main/cpp/**.h,
+                   app/src/main/assets/ui/**.lui,
+                   app/src/main/AndroidManifest.xml ]
+
+    # Release 签名（none = 还没配；IDE 里「Build > Build Release」会弹窗让你填）
+    release_keystore   = none
+    release_store_pass = none
+    release_key_alias  = none
+    release_key_pass   = none
+}
+
+# 装到设备/看日志（**不是 build 动作**）：
+#   adb install -r build/Debug/LoppeBrowser.apk
+#   adb logcat -s LoppeAppPlatform LoppeAppRuntime LoppeAppScene  # 应用日志（tag 不是工程名）
+#   adb logcat -b crash -v threadtime -d                                   # 崩溃（Java 异常 / native tombstone）

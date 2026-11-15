@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────
+# desktop — loppe-browser 的桌面壳（loppe 上的浏览器：QuickJS + .lui）
+#
+#   loppe-cli build . Debug            # 产物 build/Debug/LoppeBrowser.exe
+#   loppe-cli build . Release
+#   loppe-cli build . Debug --os=linux # 交叉编 Linux x64（ELF 落 build/linux-x64/<配置>/）
+#   loppe-cli config . Debug           # 只校验 DSL，不编译
+#
+# 本工程 = **桌面壳**：窗口（src/platform/window_frame）+ 主循环（src/browser_app）+ 入口（src/main.cpp），
+# 以及壳自己的界面 / 配置（ui/ config/）；演示站点在仓库根的 examples/（与三个平台共用）。
+#
+# 浏览器内核是 ../kernel 的**静态库**（addsub + link）：内核源码与 QuickJS 只在那边列一次；
+# 壳的头搜索路径由链接自动带过来（link 的目标的 include = 公共头路径）。
+# 引擎包在 thirdparty/loppe-<平台>-v<引擎版本>/<目标>/：pkg 只写包目录名，
+# 平台段与目标段（win-x64 / linux-x64）由构建器按当前平台与 --os 补。
+# ─────────────────────────────────────────────────────────────────
+
+minimum_required 0.1
+
+project desktop
+
+pkg = loppe-desktop-v1.0.0-preview.2
+
+addsub "../kernel"
+
+exe LoppeBrowser {
+    sources = [ src/**.c, src/**.cpp ]
+    view    = [ "src/**.h", ui/**.lui, README.md,
+                ../examples/app.js, ../examples/inner.js, config/hosts.cfg, config/window.cfg ]
+    # 内核头 / QuickJS 头 / 引擎头都由 browser_kernel 的公共 include 带过来
+    include = [ src ]
+
+    define  = [ LOPPE_STATIC ]
+
+    if os == linux {
+        # Linux：引擎四库是 .a，X11 栈 + GL 必须显式列在引擎包之后
+        if config == Release {
+            optimize = 2
+            flags    = [ -DNDEBUG ]
+            link     = [ browser_kernel,
+                         ${pkg}/lib/Release/libloppe.a, ${pkg}/lib/Release/libglad.a,
+                         ${pkg}/lib/Release/libglfw3.a, ${pkg}/lib/Release/libfreetype.a,
+                         X11, Xrandr, Xcursor, Xi, Xinerama, GL ]
+        } else {
+            optimize = 0
+            flags    = [ -g ]
+            link     = [ browser_kernel,
+                         ${pkg}/lib/Debug/libloppe.a, ${pkg}/lib/Debug/libglad.a,
+                         ${pkg}/lib/Debug/libglfw3.a, ${pkg}/lib/Debug/libfreetype.a,
+                         X11, Xrandr, Xcursor, Xi, Xinerama, GL ]
+        }
+    } else {
+        if config == Release {
+            optimize  = 2
+            flags     = [ -DNDEBUG ]
+            subsystem = windows      # Release 无控制台；Debug 保留控制台看 JS 日志
+            link      = [ browser_kernel,
+                          ${pkg}/lib/Release/loppe.lib, ${pkg}/lib/Release/glad.lib,
+                          ${pkg}/lib/Release/glfw3.lib, ${pkg}/lib/Release/freetype.lib ]
+        } else {
+            optimize = 0
+            flags    = [ -g ]
+            link     = [ browser_kernel,
+                         ${pkg}/lib/Debug/loppe.lib, ${pkg}/lib/Debug/glad.lib,
+                         ${pkg}/lib/Debug/glfw3.lib, ${pkg}/lib/Debug/freetyped.lib ]
+        }
+
+        # ws2_32 = 页面加载与 net.get 的 socket；user32 = 无边框窗口（src/platform/window_frame.cpp）
+        link += [ opengl32, gdi32, user32, ws2_32 ]
+    }
+}

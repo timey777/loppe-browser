@@ -1,0 +1,4 @@
+{
+  "hello": "loppe",
+  "note": "app.js 用 net.get('/data.json') 取到的就是这个文件"
+}

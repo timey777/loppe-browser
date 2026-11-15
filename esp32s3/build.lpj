@@ -1,0 +1,98 @@
+# ─────────────────────────────────────────────────────────────────
+# esp32s3 — ESP32-S3 工程（ESP-IDF + loppe-ui 引擎预编译包）—— IDE 侧工程描述
+#
+#   ⚠ 本工程的**构建真相是 ESP-IDF**（同目录 CMakeLists.txt + sdkconfig.defaults），
+#      不是这个文件。这个 build.lpj 只做两件事：
+#        ① 让 IDE 认工程 / 出工程节点（真实源码用 IDE 的 All Files 视图看）
+#        ② 声明「本目标的产物由这条命令产出」—— 目标级 `build` 模板（不是钩子）
+#   ── 构建（下面目标的 `build`，按顺序跑）──────────────────
+#      · tools/generate_font.py --if-changed：中文字库按需重生成（改文案/字号后不用手敲脚本）
+#      · idf.py build：真正的固件构建（增量归 ESP-IDF 自己管）
+#      要关掉字库这步：把那条命令删掉，改手动 `python tools/generate_font.py`。
+#   ── 引擎（预编译包，随工程走）────────────────────────────
+#      ../thirdparty/loppe-embedded-v1.0.0-preview.2/esp32/{lib/libloppe.a, include/}
+#      （布局同 IDE 新建的工程：解决方案根 thirdparty/loppe-<平台>-v<引擎版本>/<目标>）
+#      本工程里没有引擎源码，也不引用引擎源码路径。
+#      main/ 下只有板级代码（app_main + ST7789 驱动），按你的板卡改。
+#   ── 产物 ────────────────────────────────────────────────
+#      <本目录>/build/esp32s3.elf
+#      <本目录>/build/esp32s3.bin         ← 可烧写镜像（app 段）
+#      （构建目录就用 IDF 缺省的 <工程>/build —— 这样在 IDF 控制台里直接敲
+#        `idf.py -p COMx flash` 复用的就是 IDE 编出来的同一份缓存，不必再传 -B。
+#        本工程没有默认模板目标，构建器只会在 build/ 下留一个空的 <配置>/ 目录，
+#        不与 IDF 的构建树冲突。）
+#   ── 烧写 / 串口监视（**不是 build 动作**：单独写在目标级 `flash`）──────
+#      build 只产出文件、不碰硬件；烧写/监视要串口参数，属于另一个动作 ——
+#      IDE 的「上传」按钮跑下面的 `flash`（`{port}` 由状态栏下拉框选的 COMx 替换）。
+#      命令不带 -B：缺省 = <工程>/build，与上面的 build 用同一个缓存 → 不重编。
+# ─────────────────────────────────────────────────────────────────
+
+minimum_required 0.1
+
+project esp32s3
+
+# 工程平台 = 嵌入式 → IDE 显示「构建 + 上传」（状态栏/构建菜单），上传走下面目标里的 flash。
+platform = embedded
+
+# ── 机器侧事实：IDF 装在哪 / 哪个版本（换机器、升级 IDF 只改这几行）──
+IDF_ROOT   = D:/Espressif
+IDF_PYTHON = ${IDF_ROOT}/python_env/idf5.4_py3.11_env/Scripts/python.exe
+IDF_PY     = ${IDF_ROOT}/frameworks/esp-idf-v5.4.4/tools/idf.py
+IDF_NINJA  = ${IDF_ROOT}/tools/ninja/1.12.1
+IDF_XTENSA = ${IDF_ROOT}/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin
+
+# 跑字库脚本（generate_font.py）的 Python：**电脑上的** python，不是上面 IDF 那个
+#   （IDF 的 python 没装 Pillow；本机要有 Pillow：`pip install pillow`）。
+#   `python` 就走 PATH；你机器上带 Pillow 的不是它 → 把这行换成绝对路径（可带空格）。
+HOST_PYTHON = python
+
+# 只注入**本工程跑命令的子进程**（不改系统环境变量）：
+#   IDF_TOOLS_PATH  idf.py / idf_tools.py 靠它找工具
+#   ESP_ROM_ELF_DIR 生成 gdbinit 时要（缺了只是报警不失败，写上干净）
+#   PATH+=          **前插**到继承的 PATH（其余继承）：idf.py 前置要求 ninja / xtensa 在 PATH 上
+env  = [ "IDF_TOOLS_PATH=${IDF_ROOT}",
+         "ESP_ROM_ELF_DIR=${IDF_ROOT}/tools/esp-rom-elfs/20241011" ]
+env += [ "PATH+=${IDF_NINJA}", "PATH+=${IDF_XTENSA}" ]
+
+exe esp32s3 {
+    # ① 中文字库：按需重生成（脚本自己比对输入指纹 —— 字体/字符表/字号/脚本，没变就跳过）。
+    #    必须是本目标的第一条命令：要赶在 IDF 编译前把 main/embedded_font.cpp 写好。
+    #    字号自动取 main/main.lui 里用到的 font-size，不用手写参数。
+    build = [ "${HOST_PYTHON}", "${cur_dir}/tools/generate_font.py", "--if-changed" ]
+
+    # ② 产物由 ESP-IDF 自己的构建系统产出：目标级 `build` 模板（覆盖默认桌面 cc/ar 模板）——
+    # 不找工具链（没有桌面工具链也能构建）、不生成清单、不进 ninja 依赖图，
+    # 直接跑这条命令；退出码 0 = 成功；增量归 IDF 自己管。
+    # 真源码是 IDF 工程的一部分（main/），由 IDF 编译；这里不必也不该列 sources
+    #（IDE 树里要看到哪些文件，由下面的 view 列出来 —— 它们同样不参与本构建）。
+    # -B 显式写 ${cur_dir}/build（= IDF 缺省目录，只是不依赖当前工作目录）：
+    # 这样在 IDF 控制台直接 `idf.py -p COMx flash` 落到同一个目录、不重新配置编译。
+    build += [ "${IDF_PYTHON}", "${IDF_PY}",
+               "-C", "${cur_dir}", "-B", "${cur_dir}/build",
+               "build" ]
+
+    # 上传 / 烧写（IDE「上传」按钮；与 build 正交，不是 build 动作）：
+    #   {port} = IDE 状态栏下拉框选的串口（如 COM3）——参数化，别把 COMx 写死。
+    #   idf.py flash 默认会先构建（跟着烧）→ 与上面 build 复用同一个 <工程>/build 缓存。
+    #   想连监视一起开就在末尾加 "monitor"（会占住终端；IDE 里通常只 flash）。
+    flash = [ "${IDF_PYTHON}", "${IDF_PY}",
+              "-C", "${cur_dir}", "-p", "{port}",
+              "flash" ]
+
+    # ── IDE 里要看见的文件（**不参与编译**：树里列出、点开照常编辑，与源码同色）──
+    # 本工程不声明 sources（编译真相是 ESP-IDF），所以工程里能看到什么**全靠这一行**：
+    #   · 板级源码：main/ 下的 .c/.cpp/.h（`**` 递归 → 新增的源文件自动出现）；
+    #   · 界面：main/main.lui（构建时编进固件，见 main/CMakeLists.txt 的 EMBED_FILES）；
+    #   · 构建真相与文档：CMakeLists.txt / main/CMakeLists.txt / sdkconfig.defaults / README.md。
+    # 加了别的源码目录（如 components/）就照样子往这里追加；删文件不用改这一行。
+    view = [ main/**.c,
+             main/**.cpp,
+             main/**.h,
+             main/main.lui,
+             main/font_chars.txt,
+             tools/generate_font.py,
+             CMakeLists.txt,
+             main/CMakeLists.txt,
+             sdkconfig.defaults,
+             README.md ]
+}

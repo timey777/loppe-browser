@@ -1,0 +1,53 @@
+@style {
+    .screen {
+        width: 240px;
+        height: 320px;
+        background-color: #101820;
+        padding: 12px;
+    }
+    .title {
+        font-size: 15px;
+        color: #00d2ff;
+        font-weight: bold;
+    }
+    .label {
+        font-size: 11px;
+        color: #8899aa;
+        margin-top: 8px;
+    }
+    .btn {
+        width: 100%;
+        height: 44px;
+        background-color: #2b3a55;
+        border-radius: 6px;
+        margin-top: 14px;
+    }
+    .btn:hover  { background-color: #3d5170; }
+    .btn:active { background-color: #4ecca3; }
+    .btn-lb {
+        font-size: 13px;
+        color: #e6f1ff;
+    }
+}
+
+@layout {
+    .screen { display: flex; flex-direction: column; }
+    .btn    { display: flex; align-items: center; justify-content: center; }
+}
+
+panel(class="screen") {
+    text(class="title", value="esp32s3"),
+    text(class="label", value="The whole UI lives in main/main.lui"),
+    text(class="label", value="Touch + render loop live in main/app_main.cpp"),
+    button(id="btn-hello", class="btn") {
+        text(id="lb-hello", class="btn-lb", value="TAP ME")
+    }
+}
+
+/* 多界面：一个工程可以有多份 .lui（不止这一份）。
+   做法：把上面的内容当外壳，在末尾留一个带 id 的空 panel 当挂载点
+       panel(id="page-slot", class="page-slot") {}      // 样式里给它 flex-grow: 1
+   每个页面各写一份 .lui（例如 page_home.lui），列进 main/CMakeLists.txt 的 EMBED_FILES，
+   运行期用 ComponentInstantiator::SpawnElementViewUnderId 挂到 "page-slot" 下。
+   见 docs/loppe-ui/LOPPE_MULTI_UI.md。
+ */

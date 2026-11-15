@@ -1,0 +1,36 @@
+// inner.lui —— 第二个页面的静态结构（深色整页），行为在 inner.js。
+
+@style {
+    .page {
+        width: 100%;
+        height: 100%;
+        background-color: #0f172a;
+        padding: 24px;
+        overflow: scroll;
+    }
+    .h1 { font-size: 22px; color: #f8fafc; }
+    .text { font-size: 13px; color: #94a3b8; }
+    .btn {
+        width: 150px;
+        height: 32px;
+        background-color: #1e293b;
+        border: 1px #334155;
+        border-radius: 6px;
+    }
+    .btn:hover { background-color: #334155; }
+    .btn-text { font-size: 13px; color: #e2e8f0; }
+}
+
+@layout {
+    .page { display: flex; flex-direction: column; gap: 10px; }
+    .btn { display: flex; align-items: center; justify-content: center; }
+}
+
+panel(class="page") {
+    text(class="h1", value="inner.js 已加载"),
+    text(class="text", value="这一页是 app.js 里的按钮调 ui.navigate('/inner.js') 过来的：同一个标签、记了历史，按 ← 能回去。"),
+    text(class="text", value="它的结构在 inner.lui（import 导入），行为在 inner.js —— 和 app.js 一个模型。"),
+    button(id="btn-back", class="btn") {
+        text(class="btn-text", value="回 app.js")
+    }
+}

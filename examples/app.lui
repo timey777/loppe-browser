@@ -1,0 +1,87 @@
+// app.lui —— 页面的静态结构与样式（JS 是程序，lui 是资源）。
+//
+// 这份文件里没有任何行为：改布局调样式只动这里，预览（PreviewViewCoordinator）现成。
+// 组件模板由 app.js 用 ui.append 挂进下面的槽位（slot-*）；主题切换是给根节点换 class
+// （.page.dark），不整份重渲染。
+
+@style {
+    .page {
+        width: 100%;
+        height: 100%;
+        background-color: #ffffff;
+        padding: 16px;
+        overflow: scroll;
+    }
+    .page.dark { background-color: #0f172a; }
+
+    .h1 { font-size: 22px; color: #101828; }
+    .text { font-size: 13px; color: #475467; }
+    .count { font-size: 20px; color: #101828; }
+
+    .card {
+        background-color: #f8fafc;
+        border: 1px #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    .btn {
+        width: 150px;
+        height: 32px;
+        background-color: #2563eb;
+        border-radius: 6px;
+    }
+    .btn:hover { background-color: #1d4ed8; }
+    .btn-text { font-size: 13px; color: #ffffff; }
+
+    .chip {
+        padding: 4px 10px;
+        border: 1px #e2e8f0;
+        border-radius: 999px;
+    }
+    .chip.on { background-color: #2563eb; }
+    .chip-on-text { color: #ffffff; }
+
+    .kbd-input {
+        height: 34px;
+        padding: 0 8px;
+        background-color: #ffffff;
+        color: #101828;
+        border: 1px #e2e8f0;
+        border-radius: 6px;
+    }
+
+    /* 深色主题：只换根节点的 class，整棵树跟着变 */
+    .page.dark .h1,
+    .page.dark .count { color: #f8fafc; }
+    .page.dark .text { color: #94a3b8; }
+    .page.dark .card {
+        background-color: #1e293b;
+        border: 1px #334155;
+    }
+    .page.dark .chip { border: 1px #334155; }
+    .page.dark .kbd-input {
+        background-color: #0f172a;
+        color: #f8fafc;
+        border: 1px #334155;
+    }
+}
+
+@layout {
+    .page { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+    .card { display: flex; flex-direction: column; gap: 6px; }
+    .btn { display: flex; align-items: center; justify-content: center; }
+    .slot { display: flex; flex-direction: column; gap: 8px; }
+}
+
+panel(class="page", id="app") {
+    text(class="h1", value="组件 + signal"),
+    text(class="text", value="结构在 app.lui（这份文件），行为在 app.js。状态变化 = signal 变，effect 自动写属性/类。"),
+
+    panel(id="slot-counter", class="slot"),
+    panel(id="slot-chips", class="slot"),
+    panel(id="slot-clock", class="slot"),
+    panel(id="slot-theme", class="slot"),
+    panel(id="slot-events", class="slot"),
+    panel(id="slot-nav", class="slot")
+}

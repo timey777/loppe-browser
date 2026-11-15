@@ -1,0 +1,101 @@
+# LOPPE 确定性布局设计
+
+LOPPE 布局面向可预测的应用界面，不复刻 CSS 的固有最小尺寸和完整 Flexbox 算法。
+
+> 📖 中文 | [English](LAYOUT_DESIGN_EN.md)
+
+---
+
+## 尺寸模型
+
+每个节点包含三类相关尺寸：
+
+1. 期望尺寸：显式 `width`/`height`；值为 `auto` 时使用内容测量尺寸。
+2. 最终尺寸：期望尺寸经过 min/max 约束和 flex 空间分配后的结果。
+3. 滚动尺寸：内容超过最终尺寸时，内容实际占用的范围。
+
+内容可以增大期望尺寸或滚动尺寸，但不能反向扩大 flex 已经分配的最终尺寸。
+
+## 默认值
+
+| 属性 | 默认值 | 含义 |
+|---|---:|---|
+| `min-width`, `min-height` | `0` | 不存在隐式内容最小尺寸 |
+| `max-width`, `max-height` | 不限制 | 没有最大尺寸约束 |
+| `flex-grow` | `0` | 不参与剩余空间分配 |
+| `flex-shrink` | `0` | 不参与空间收缩 |
+
+`width` 和 `height` 是期望尺寸，不是最小尺寸。只有显式设置 `flex-shrink` 后，元素才允许小于其期望尺寸。
+
+与标准 CSS 不同，flex 子项**没有隐式的 `min-width: auto`**。既然 min-size 默认就是 `0`，
+从 CSS 迁移时惯用的 `min-width: 0`（让 flex 子项能缩到内容宽以下）在这里是多余的。
+
+## 盒模型
+
+LOPPE 只使用一种尺寸模型：`width`、`height`、`min-*` 和 `max-*` 都表示 border box。Padding 和 border 包含在声明尺寸内，margin 位于声明尺寸之外。
+
+例如，`width: 100px; padding: 10px; border: 2px` 会产生 100px 的 border box 和 76px 的 content box。
+
+## Min/Max 约束
+
+Min/max 是显式硬边界：
+
+```text
+基础尺寸 = clamp(期望尺寸, 最小尺寸, 最大尺寸)
+```
+
+不存在隐式 `min-content` 或 `min-height:auto` 行为。显式最小尺寸大于显式最大尺寸时，最小尺寸优先。
+
+百分比仅在父节点对应轴尺寸确定时，才相对父节点 content box 解析；否则按 `auto` 处理。
+
+## Flex 空间分配
+
+Grow 和 shrink 相互独立，并且只作用于主轴。
+
+剩余空间为正时，符合条件的元素按 `flex-grow` 值直接分配空间。元素达到最大尺寸后冻结，剩余空间继续分配给其他符合条件的元素。
+
+剩余空间为负时，只有 `flex-shrink > 0` 的元素参与收缩。缺少的空间直接按 shrink 值分配，不使用 `尺寸 × shrink`。元素达到最小尺寸后冻结，剩余收缩量继续分配。
+
+没有可收缩元素时，未解决的空间成为容器 overflow。默认 `flex-shrink: 0` 的元素不会被隐式压缩。
+
+单行 flex 中，`align-items: stretch` 始终可以扩大 auto 交叉尺寸。只有子项的 `overflow` 为 `auto`、`scroll` 或 `hidden` 时才允许向容器交叉尺寸缩小，超出内容由该子项处理；`overflow: visible` 保留内容尺寸，溢出范围交给父级。
+
+## Grid 空间分配
+
+Grid 轨道尺寸遵循与 flex 相同的确定性原则：
+
+1. **固定轨道先占**：`px`、`%` 和 `auto` 轨道（内容尺寸）先占据空间；`auto` 轨道取该轨道上所有项内容尺寸的最大值。
+2. **剩余空间分配**：容器内容尺寸减去固定轨道与 gap 合计后，剩余空间按 `fr` 值比例分配给 `fr` 轨道；剩余为负时 `fr` 轨道取 0，溢出由容器 overflow 处理。
+3. **容器尺寸未知**：`fr` 和 `%` 轨道无法解析（取 0），容器内在尺寸由 `px`/`auto` 轨道决定——与 flex 的 auto 宽度取内容尺寸一致。
+4. **stretch**：`width`/`height` 为 auto 的项默认拉伸填满单元格（扣除自身 margin/border/padding），语义同 flex 的交叉轴 stretch。
+5. **块轴对齐（align-items / align-self）**：默认 `stretch` 即第 4 条；`center` / `flex-end` / `flex-start` 时子项保留内容高度、在行内对齐（偏移 = 行高 − 子项高，center 取半，负值钳 0）。子项写 `align-self` 可单独覆盖父 `align-items`（`auto`=跟随父）。
+
+## 滚动容器
+
+需要占用剩余空间的弹性滚动区域必须显式允许收缩：
+
+```loppe
+@layout {
+    .app { display: flex; flex-direction: column; }
+    .content { flex-grow: 1; flex-shrink: 1; }
+}
+```
+
+内容区域取得剩余的最终高度。超出的后代增加其 `scrollHeight`，不能扩大已经分配的最终高度。
+
+这样可以保持工具栏和状态栏尺寸稳定，并让指定的内容区域负责处理 overflow。
+
+### 逐轴滚动（`overflow-x` / `overflow-y`，2026-10-23）
+
+单值 `overflow` 一个开关管两轴。要「只在一个轴上滚」，用逐轴属性：
+
+```loppe
+@style {
+    /* 纵向自己滚；横向裁剪（不出横向条，也不画到盒外） */
+    .list { overflow-y: auto; overflow-x: hidden; }
+}
+```
+
+- `overflow-x` / `overflow-y` 只覆盖自己那一轴（`visible` = 不裁剪、不出该轴滚动条、溢出并进最近的祖先滚动容器；`hidden` = 裁剪不出条；`auto`/`scroll` = 自己滚）。
+- `overflow` 仍是简写（两轴一起设），也仍是 flex 交叉轴 stretch 的判定输入（`visible` 保留内容尺寸）。
+- 典型用法：列表只纵向滚，行比列表宽时不出列表自己的横向条，而是让外层那一条横向滚动条把超长行一起带走。

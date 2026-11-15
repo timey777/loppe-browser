@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────
+# kernel — loppe-browser 的浏览器内核（静态库工程）
+#
+#   loppe-cli build . Debug      # 单独校验：产物 build/Debug/libbrowser_kernel.a
+#   loppe-cli config . Debug     # 只解析 + 打印清单，不编译
+#
+# 这里放**与平台无关**的浏览器逻辑：js（QuickJS 绑定）、net（URL/HTTP）、
+# page（页面会话）、perm（权限）、browser_scene（DOM/渲染绑定）。
+# 窗口、主循环、板级驱动这些平台相关的东西在各自的壳里：
+#   ../           桌面壳（main.cpp + browser_app + platform/window_frame）
+#   ../android/   安卓壳（JNI + SurfaceView）
+#   ../esp32s3/   ESP32-S3 壳（IDF + ST7789 触摸屏，走 IDF 的 CMake，不经过本文件）
+#
+# 桌面壳与安卓壳都是 **addsub 本目录 + link browser_kernel**：内核只编一份，壳不再把
+# kernel/src 抄进自己的 sources（QuickJS 的 .c 也只有这里列一次）。
+# 平台由引入方决定：壳在自己文件里写 `platform = ...`，本文件不写 → 继承引入方的平台，
+# 于是引擎包头与包内目标目录（win-x64 / linux-x64 / arm64-v8a）跟着一起对。
+# ─────────────────────────────────────────────────────────────────
+
+minimum_required 0.1
+
+project kernel
+
+# 引擎包：只写**包目录名**，平台段与目标段由构建器按「本文件平台 + 目标 os」补全
+#（loppe-desktop-v… 在安卓下自动变 loppe-android-v…，Windows/Linux 各自挑 win-x64 / linux-x64）。
+pkg = loppe-desktop-v1.0.0-preview.2
+
+lib browser_kernel {
+    kind    = static
+
+    sources = [ src/**.c, src/**.cpp,
+                # QuickJS 核心（页面脚本引擎）——整个目录的 .c 都要
+                ../thirdparty/quickjs-ng/**.c ]
+    # 只排除「不该编进内核」的那几个：qjs 是可执行入口（带 main）、quickjs-libc 依赖 POSIX libc。
+    # 裁剪版目录里没有它们，-= 匹配不到只记一条 warning（不影响构建）；
+    # 换回完整上游源码时这两行才真正生效。
+    sources -= [ ../thirdparty/quickjs-ng/qjs.c,
+                 ../thirdparty/quickjs-ng/quickjs-libc.c ]
+
+    view    = [ "src/**.h", README.md ]
+
+    include = [ src, ../thirdparty/quickjs-ng, ${pkg}/include ]
+
+    define  = [ LOPPE_STATIC ]
+    # 安卓的宏由库自己带上：库是对着安卓工具链编的，宏不能指望壳传进来
+    if platform == android {
+        define += [ LOPPE_PLATFORM_ANDROID, LOPPE_ENABLE_RENDERING ]
+    }
+}

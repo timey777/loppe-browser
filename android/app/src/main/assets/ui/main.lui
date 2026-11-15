@@ -1,0 +1,40 @@
+@style {
+    .screen {
+        width: 100%;
+        height: 100%;
+        background-color: #f5f7fb;
+        padding: 20px;
+    }
+    .title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #14181f;
+        margin-bottom: 8px;
+    }
+    .sub {
+        font-size: 13px;
+        color: #7c8798;
+        margin-bottom: 6px;
+    }
+    .hint {
+        font-size: 13px;
+        color: #2563eb;
+        margin-top: 16px;
+    }
+}
+
+@layout {
+    .screen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+panel:root(class="screen") {
+    text(class="title", value="android"),
+    text(class="sub", value="The whole UI lives in assets/ui/main.lui"),
+    text(class="sub", value="Touch input + rendering live in cpp/"),
+    text(class="hint", value="see README.md")
+}

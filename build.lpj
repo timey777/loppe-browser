@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────────
+# loppe-browser — 解决方案根（不编任何目标，只负责把四个工程并进一棵树）
+#
+#   loppe-cli build . Debug --targets=LoppeBrowser   # 根构建只走 desktop 平台目标
+#   loppe-cli config . Debug                            # 只解析 + 打印清单，不编译
+#
+# ⚠ 根构建 ≠ 全编四个：platform 是文件层工程级属性，addsub 合并后以根文件（desktop）为准，
+#   所以 android / esp32s3 从根构建会拿错工具链（jni.h not found / xtensa 缺包）。
+#   跨平台壳永远在自己的目录里单独构建：
+#     cd android && loppe-cli build . Debug
+#     cd esp32s3 && loppe-cli build . Debug
+#   addsub 在这里的作用 = 编辑器左栏 SOLUTION 能看到四个工程（IDE 只看 addsub，不扫目录）。
+#
+# 四个子工程（目录互为兄弟，thirdparty/ 由它们用 ../ 各自引用，不复制）：
+#   desktop/   桌面壳（窗口 + 主循环 + 入口 + ui/config；演示站点在根 examples/）
+#   kernel/    浏览器内核（js / net / page / perm / browser_scene）——**静态库**，被壳 link；
+#              由 desktop 与 android 各自 addsub 进来，所以这里不必再列（重复引入会被跳过）
+#   android/   安卓壳（JNI + SurfaceView）
+#   esp32s3/   ESP32-S3 壳（ESP-IDF + ST7789 触摸屏，走 IDF 自己的 CMake）
+# ─────────────────────────────────────────────────────────────────
+
+minimum_required 0.1
+
+project loppe-browser
+
+addsub "desktop"
+addsub "android"
+addsub "esp32s3"

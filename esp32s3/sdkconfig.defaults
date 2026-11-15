@@ -1,0 +1,36 @@
+# esp32s3 — ESP-IDF sdkconfig.defaults（面向 ESP32-S3）
+#
+# PSRAM（真机推荐开启：帧缓冲 150KB + 布局树放 PSRAM，否则内部 RAM 不够会崩溃）
+# 注意：QEMU 无 PSRAM，用 QEMU 时把下面 5 行注释掉再编译。
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# 提高 CPU 频率到 240MHz（官方上限）
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# C++ 支持（引擎用到 RTTI 与异常）
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+CONFIG_COMPILER_CXX_RTTI=y
+CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=0
+
+# 主任务栈：布局引擎递归深，默认 3.5KB 会栈溢出崩溃
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+
+# 日志级别
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# 减小内存占用
+CONFIG_FREERTOS_HZ=1000
+
+# SPI LCD 需要
+CONFIG_SPI_MASTER_ISR_IN_IRAM=y
+
+# 分区：单 app 大分区（app = 1.5MB）
+# 缺省的「单 app」只有 1MB，引擎 + 一份中文字库就超了（编到 check_sizes 会报 app partition is too small）。
+# 2MB flash 的板子也成立（0x10000 + 1.5MB < 2MB）；不用中文字库也可以留着。
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y

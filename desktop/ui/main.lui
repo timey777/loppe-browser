@@ -1,0 +1,380 @@
+/* loppe-browser 的外壳界面。
+ *
+ * 这里只画浏览器自己的东西：标题栏 + 标签条 + 窗口按钮、地址栏、模式、权限条、状态栏、页面容器。
+ * 系统标题栏已经去掉（见 src/platform/window_frame.h），最上面那一条就是标题栏，
+ * 空白处可以拖窗口——拖动区由 browser_scene.cpp 的 updateDragRegions() 报给系统。
+ *
+ * 页面内容不在这里 —— 那是 app.js 在运行期往各标签自己的容器（#page-N）里挂的（见 examples/app.js）。
+ *
+ * 要改外观就改下面两个块；要加按钮就在对应容器里加 button，并在 browser_scene.cpp
+ * 的 bindChrome() 里绑回调（id 一致即可）。
+ *
+ * 注意：引擎给 button 的默认样式是 padding: 8 16、border 1px，而 overflow 默认 auto。
+ * 所以固定尺寸的小按钮（图标 / 窗口按钮 / 导航按钮）必须自己写 padding: 0 和 overflow: hidden，
+ * 否则内容区会被默认内边距挤爆，文字一溢出就冒出一条滚动条。
+ *
+ * 图标着色：注册的 SVG 图标是「白色掩码」，颜色取使用处自己的 computed color；而 color 是
+ * 可继承属性 —— 所以 **颜色写在按钮上、图标只写宽高**，hover 换色只改按钮那一条规则即可
+ * （图标会跟着父级重算，见 resolved_node 的 refreshInheritedStylesInChildren）。
+ *
+ * 图标显示多大 = icon 的 width/height（svg 等比缩放居中撑满这个框），按钮尺寸只是 hit 区。
+ */
+@style {
+    .app {
+        width: 100%;
+        height: 100%;
+        background-color: #eef1f6;
+    }
+
+    /* ── 标题栏（自己画的，系统那一条已经不画了）── */
+    .titlebar {
+        height: 40px;
+        background-color: #d6dcea;
+    }
+    .drag-fill {
+        height: 100%;
+    }
+    .tabs {
+        height: 100%;
+        padding-left: 8px;
+        padding-right: 4px;
+        overflow: hidden;
+    }
+    .tab {
+        width: 188px;
+        height: 30px;
+        min-width: 72px;
+        background-color: #c3cddd;
+        border-radius: 7px;
+        padding: 4px 4px 4px 10px;
+        overflow: hidden;
+    }
+    .tab:hover {
+        background-color: #ccd7e8;
+    }
+    .tab-active {
+        background-color: #ffffff;
+    }
+    .tab-active:hover {
+        background-color: #ffffff;
+    }
+    .tab-title {
+        font-size: 12px;
+        color: #22303f;
+    }
+    .tab-close {
+        width: 20px;
+        height: 20px;
+        background-color: transparent;
+        border-width: 0px;
+        border-radius: 5px;
+        padding: 0px;
+        overflow: hidden;
+        color: #55637a;
+    }
+    .tab-close:hover {
+        background-color: #dbe3f0;
+        color: #1f2a3a;
+    }
+    /* 标题前那一格（14×14）：默认地球 / 远端 favicon / 加载转圈，三选一由 kernel 每帧定。
+       三个都占同一格同一尺寸，所以换哪一个标题都不会左右跳。颜色继承 .tab 的 color
+       （图标是白色掩码，见文件头的「图标着色」）。 */
+    .tab-icon {
+        width: 14px;
+        height: 14px;
+        color: #6b778c;
+    }
+    /* 图标只定尺寸，颜色靠继承父按钮的 color（见文件头的「图标着色」） */
+    .tab-close-icon {
+        width: 14px;
+        height: 14px;
+    }
+    .iconbtn {
+        width: 28px;
+        height: 28px;
+        background-color: transparent;
+        border-width: 0px;
+        border-radius: 6px;
+        padding: 0px;
+        overflow: hidden;
+    }
+    .iconbtn:hover {
+        background-color: #c8d3e4;
+    }
+    .icontext {
+        font-size: 15px;
+        color: #33415c;
+    }
+    .winbtn {
+        width: 44px;
+        height: 40px;
+        background-color: transparent;
+        border-width: 0px;
+        padding: 0px;
+        overflow: hidden;
+        color: #2b3749;
+    }
+    .winbtn:hover {
+        background-color: #c8d3e4;
+    }
+    .win-close:hover {
+        background-color: #e81123;
+        color: #ffffff;
+    }
+    /* 窗口三键的图形：14×14 —— 缩下来方框/叉约 10px、线宽约 1px，跟系统标题栏一个分量；
+       按钮 44×40 只是 hit 区，跟图形大小无关。
+       14 这个偶数不是随手取的：40 - 14 = 26 是偶数，居中后落在整数像素上；
+       奇数尺寸会让那条 1px 的「最小化」横线压在两行之间，渲染成一条发虚的灰杠。 */
+    .winicon {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* ── 地址栏那一排 ── */
+    .chrome {
+        height: 48px;
+        background-color: #dfe4ee;
+        padding: 8px;
+    }
+    .navbtn {
+        width: 30px;
+        height: 30px;
+        background-color: #ffffff;
+        border: 1px #c7cfdd;
+        border-radius: 6px;
+        padding: 0px;
+        overflow: hidden;
+        color: #33415c;
+    }
+    .navbtn:hover {
+        background-color: #e6ecf7;
+    }
+    /* 导航图标：16×16 图形放在 30×30 按钮里 —— 与地址栏 13px 的文字同一档视觉重量
+       （撑满 30 的时候那个箭头大得像个色块）。 */
+    .navicon {
+        width: 16px;
+        height: 16px;
+    }
+    .addr {
+        height: 30px;
+        font-size: 13px;
+        color: #1c2432;
+        background-color: #ffffff;
+        border: 1px #c7cfdd;
+        border-radius: 6px;
+        padding: 4px;
+    }
+    .mode {
+        height: 30px;
+        font-size: 12px;
+    }
+    .go {
+        width: 64px;
+        height: 30px;
+        background-color: #2563eb;
+        border-radius: 6px;
+        padding: 0px;
+        overflow: hidden;
+    }
+    .go-text {
+        font-size: 13px;
+        color: #ffffff;
+    }
+
+    /* ── 权限条 ── */
+    .perm {
+        height: 36px;
+        background-color: #fff4e5;
+        border: 1px #f0c88a;
+        padding: 5px;
+        overflow: hidden;
+    }
+    .perm-text {
+        font-size: 12px;
+        color: #8a5a00;
+    }
+    .permbtn {
+        width: 60px;
+        height: 24px;
+        background-color: #ffffff;
+        border: 1px #f0c88a;
+        border-radius: 4px;
+        padding: 0px;
+        overflow: hidden;
+    }
+    .permbtn:hover {
+        background-color: #ffe9c9;
+    }
+
+    /* ── 页面区（页面自己的外观由页面文档的 @style 决定，这里只管占位）── */
+    .page {
+        background-color: #ffffff;
+    }
+
+    /* ── 状态栏 ── */
+    .status {
+        font-size: 12px;
+        color: #45536b;
+        padding: 4px;
+    }
+    .statusbar {
+        height: 24px;
+        background-color: #e5e9f2;
+    }
+}
+
+@layout {
+    .app {
+        display: flex;
+        flex-direction: column;
+    }
+    .titlebar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .tabs {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        flex-grow: 0;
+        flex-shrink: 1;
+    }
+    .drag-fill {
+        flex-grow: 1;
+        flex-shrink: 1;
+    }
+    .tab {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 1;
+    }
+    .tab-title {
+        flex-grow: 1;
+        flex-shrink: 1;
+    }
+    .tab-icon {
+        flex-shrink: 0;
+    }
+    .tab-close-icon {
+        flex-shrink: 0;
+    }
+    .tab-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .iconbtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .winbtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .winicon {
+        flex-shrink: 0;
+    }
+    .chrome {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+    .navbtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .navicon {
+        flex-shrink: 0;
+    }
+    .addr {
+        flex-grow: 1;
+        flex-shrink: 1;
+    }
+    .mode {
+        flex-shrink: 0;
+    }
+    .go {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .perm {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .perm-fill {
+        flex-grow: 1;
+        flex-shrink: 1;
+    }
+    .permbtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .page {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 1;
+    }
+    .statusbar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    /* 必须放最后：display: none 要压过上面所有 display: flex */
+    .hidden {
+        display: none;
+    }
+}
+
+panel:root(class="app") {
+    panel:titlebar(class="titlebar") {
+        panel:tabs(class="tabs") {},
+        button:tab-new(class="iconbtn") { text(class="icontext", value="+") },
+        panel(class="drag-fill") {},
+        button:win-min(class="winbtn") { icon(name="shell-min", class="winicon") },
+        /* 最大化/还原两种图形由 BrowserScene::refreshWindowButtons 每帧按窗口状态换 */
+        button:win-max(class="winbtn") { icon(id="win-max-icon", name="shell-max", class="winicon") },
+        button:win-close(class="winbtn win-close") { icon(name="shell-win-close", class="winicon") }
+    },
+    panel(class="chrome") {
+        button:nav-back(class="navbtn") { icon(name="shell-back", class="navicon") },
+        button:nav-forward(class="navbtn") { icon(name="shell-forward", class="navicon") },
+        button:nav-reload(class="navbtn") { icon(name="shell-reload", class="navicon") },
+        input:addr(class="addr", placeholder="输入地址：loppe / 127.0.0.1:8080 / http://host/app.js"),
+        combobox:mode(class="mode", options="自动,域名,本地映射"),
+        button:nav-go(class="go") { text(class="go-text", value="打开") }
+    },
+    panel:perm(class="perm hidden") {
+        text:perm-text(class="perm-text", value=""),
+        panel(class="perm-fill") {},
+        button:perm-allow(class="permbtn") { text(class="perm-text", value="允许") },
+        button:perm-deny(class="permbtn") { text(class="perm-text", value="拒绝") }
+    },
+    panel:page(class="page") {},
+    panel(class="statusbar") {
+        text:status(class="status", value="就绪")
+    }
+}

@@ -1,0 +1,24 @@
+// auto-test.lui —— 自驱动回归页的结构（挂载槽位）。
+
+@style {
+    .page {
+        width: 100%;
+        height: 100%;
+        background-color: #ffffff;
+        padding: 16px;
+        overflow: scroll;
+    }
+    .title { font-size: 18px; color: #1c2432; }
+    .text { font-size: 13px; color: #5b6b84; }
+    .card { padding: 8px; }
+}
+
+@layout {
+    .page { display: flex; flex-direction: column; gap: 8px; }
+}
+
+panel(class="page", id="app") {
+    text(id="title", class="title", value="auto-test"),
+    text(id="status", class="text", value="自驱动回归：挂载 → remove → 整页重渲染循环"),
+    panel(id="slot", class="card") {}
+}

@@ -1,0 +1,18 @@
+# 构建产物（根 build/ 与各壳的 <壳>/build/ 都算）
+build/
+
+# 引擎预编译包：只有二进制与头，按版本放进来但不入库
+# 布局同 loppe IDE 新建的工程：thirdparty/loppe-<平台>-v<引擎版本>/<目标>
+/thirdparty/loppe-desktop-v*/
+/thirdparty/loppe-android-v*/
+/thirdparty/loppe-embedded-v*/
+
+# 运行期写入的本机状态
+desktop/config/permissions.cfg
+
+# 编辑器 / 系统杂物
+.vscode/
+.idea/
+*.user
+.DS_Store
+Thumbs.db
