@@ -1,0 +1,2 @@
+# 引擎预编译包原样入库：头文件与静态库都不做换行转换（core.autocrlf 别改包里的字节）
+thirdparty/** -text

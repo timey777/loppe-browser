@@ -1,0 +1,6 @@
+Loppe-UI prebuilt package (Android aarch64)
+target   : aarch64-linux-android21
+compiler : D:/pack/output/toolchain/bin/clang.exe
+project  : D:/Users/Git/loppe/thirdparty/loppe-ui-src/build-android.lpj
+config   : Release
+exported : 2026-11-15 13:00:42

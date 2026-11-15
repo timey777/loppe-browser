@@ -1,0 +1,3 @@
+Loppe-UI ESP32-S3 prebuilt package
+target: esp32s3 (ESP-IDF)
+idf root: D:/Espressif

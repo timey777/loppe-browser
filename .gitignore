@@ -1,11 +1,9 @@
-# 构建产物（根 build/ 与各壳的 <壳>/build/ 都算）
+# 构建产物：根 build/ 与各壳的 <壳>/build/（`build/` 无前导斜杠 = 任意层都忽略）；
+# 引擎包里的 lib/ include/ 不在 build/ 下，不受影响
 build/
 
-# 引擎预编译包：只有二进制与头，按版本放进来但不入库
-# 布局同 loppe IDE 新建的工程：thirdparty/loppe-<平台>-v<引擎版本>/<目标>
-/thirdparty/loppe-desktop-v*/
-/thirdparty/loppe-android-v*/
-/thirdparty/loppe-embedded-v*/
+# 引擎预编译包**入库**（thirdparty/loppe-<平台>-v<引擎版本>/<目标>）：
+# 里面的 lib/*.a、lib/*.lib 是构建依赖，clone 下来就能编，不另外导出/下载。
 
 # 运行期写入的本机状态
 desktop/config/permissions.cfg
